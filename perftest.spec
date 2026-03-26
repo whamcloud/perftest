@@ -1,3 +1,4 @@
+
 Name:           perftest
 Summary:        IB Performance tests
 Version:        26.04.13
@@ -20,11 +21,8 @@ gen3 uverbs microbenchmarks
 %setup -q
 
 %build
+autoreconf -fiv
 %configure \
-%if %{?_cuda_h_path:1}0
-        CUDA_H_PATH=%{_cuda_h_path}
-%endif
-%{__make}
 chmod -x runme
 
 %install
