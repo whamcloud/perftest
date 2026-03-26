@@ -1,13 +1,7 @@
 name: Build and Test perftest on Ubuntu 24.04 with CUDA 12.9
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
-
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-24.04

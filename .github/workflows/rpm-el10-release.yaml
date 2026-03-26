@@ -1,0 +1,90 @@
+name: Build RPM for EL10 and Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Release name / tag (e.g. v26.04.13)'
+        required: true
+        type: string
+      draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    container:
+      image: rockylinux/rockylinux:10
+
+    steps:
+      - name: Install git (required for checkout)
+        run: dnf install -y git
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            rpm-build \
+            rpmdevtools \
+            autoconf \
+            automake \
+            gcc \
+            gcc-c++ \
+            libtool \
+            make \
+            libibverbs-devel \
+            librdmacm-devel \
+            libibumad-devel \
+            pciutils-devel
+
+      - name: Set up RPM build tree
+        run: rpmdev-setuptree
+
+      - name: Get version from spec file
+        id: get_version
+        run: |
+          VERSION=$(grep '^Version:' perftest.spec | awk '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building RPM version: $VERSION"
+
+      - name: Create source tarball
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          git config --global --add safe.directory /__w/perftest/perftest
+          git archive --prefix=perftest-${VERSION}/ HEAD \
+            | gzip > ~/rpmbuild/SOURCES/perftest-${VERSION}.tar.gz
+          cp perftest.spec ~/rpmbuild/SPECS/
+          echo "Source tarball created: perftest-${VERSION}.tar.gz"
+
+      - name: Build binary RPM (no debuginfo, no src RPM)
+        run: |
+          rpmbuild -bb \
+            --define "_debugsource_packages 0" \
+            --define "_debuginfo_subpackages 0" \
+            ~/rpmbuild/SPECS/perftest.spec
+
+      - name: Collect RPM artifacts
+        run: |
+          mkdir -p /tmp/release-rpms
+          find ~/rpmbuild/RPMS -name "*.rpm" \
+            ! -name "*debuginfo*" \
+            ! -name "*debugsource*" \
+            | xargs -I{} cp {} /tmp/release-rpms/
+          echo "RPMs staged for release:"
+          ls -lh /tmp/release-rpms/
+
+      - name: Create GitHub Release and upload RPMs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_name }}
+          name: ${{ inputs.release_name }}
+          draft: ${{ inputs.draft }}
+          files: /tmp/release-rpms/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
