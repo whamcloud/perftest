@@ -22,7 +22,8 @@ gen3 uverbs microbenchmarks
 
 %build
 autoreconf -fiv
-%configure \
+%configure
+%{__make}
 chmod -x runme
 
 %install
